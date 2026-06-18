@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification System — Dashboard</title>
+    <meta name="description" content="Real-time notification dashboard with AI-powered summaries and semantic search.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+
+    /* ═══════════════════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════════════════ */
+    :root {
+        --bg-base:     #0c0e14;
+        --bg-card:     #161925;
+        --bg-elevated: #1c2030;
+        --bg-glass:    rgba(18, 21, 32, 0.82);
+
+        --border:      rgba(255,255,255,0.07);
+        --border-hi:   rgba(255,255,255,0.13);
+
+        --accent:      #6c63ff;
+        --accent-dim:  rgba(108,99,255,0.14);
+        --accent-glow: rgba(108,99,255,0.32);
+        --purple:      #a855f7;
+        --purple-dim:  rgba(168,85,247,0.12);
+
+        --ok:          #22c55e;
+        --ok-dim:      rgba(34,197,94,0.12);
+        --bad:         #ef4444;
+        --bad-dim:     rgba(239,68,68,0.12);
+        --warn:        #f59e0b;
+        --warn-dim:    rgba(245,158,11,0.12);
+        --sky:         #38bdf8;
+        --sky-dim:     rgba(56,189,248,0.12);
+
+        --t1: #eef0f8;
+        --t2: #8891a8;
+        --t3: #485069;
+
+        --r-sm:   6px;
+        --r-md:  10px;
+        --r-lg:  14px;
+        --r-xl:  20px;
+        --r-pill: 9999px;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════════════ */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'Inter', system-ui, sans-serif;
+        background: var(--bg-base);
+        color: var(--t1);
+        min-height: 100vh;
+    }
+    body::before {
+        content:'';
+        position:fixed; inset:0; pointer-events:none; z-index:0;
+        background:
+            radial-gradient(ellipse 65% 55% at 12% -8%,  rgba(108,99,255,0.10) 0%, transparent 60%),
+            radial-gradient(ellipse 50% 45% at 88% 105%, rgba(168,85,247,0.08) 0%, transparent 60%);
+    }
+
+    /* ═══════════════════════════════════════════════════
+       PAGE SHELL
+    ═══════════════════════════════════════════════════ */
+    .page {
+        position: relative; z-index: 1;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 28px 24px 80px;
+    }
+    @media (max-width: 600px) { .page { padding: 18px 14px 60px; } }
+
+    /* ═══════════════════════════════════════════════════
+       FLOATING PROFILE WIDGET
+    ═══════════════════════════════════════════════════ */
+    .profile-float {
+        position: fixed;
+        top: 22px; right: 24px;
+        z-index: 1000;
+    }
+
+    .profile-btn {
+        position: relative;
+        width: 44px; height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+        border: 2px solid rgba(255,255,255,0.12);
+        cursor: pointer;
+        display: grid; place-items: center;
+        color: #fff;
+        font-size: 15px; font-weight: 700; font-family: inherit;
+        box-shadow: 0 4px 18px var(--accent-glow), 0 2px 6px rgba(0,0,0,0.5);
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+        user-select: none;
+    }
+    .profile-btn:hover {
+        transform: scale(1.07);
+        box-shadow: 0 6px 26px rgba(108,99,255,0.52), 0 2px 6px rgba(0,0,0,0.5);
+        border-color: rgba(255,255,255,0.22);
+    }
+    .profile-btn:active { transform: scale(0.96); }
+
+    .avatar-dot {
+        position: absolute;
+        top: 1px; right: 1px;
+        width: 11px; height: 11px;
+        border-radius: 50%;
+        background: var(--bad);
+        border: 2px solid var(--bg-base);
+        box-shadow: 0 0 8px rgba(239,68,68,0.7);
+        animation: dot-glow 2s ease-in-out infinite;
+    }
+    @keyframes dot-glow {
+        0%,100% { box-shadow: 0 0 6px  rgba(239,68,68,0.6); }
+        50%     { box-shadow: 0 0 14px rgba(239,68,68,0.9); }
+    }
+
+    .profile-dropdown {
+        position: absolute;
+        top: calc(100% + 14px); right: 0;
+        width: 288px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04);
+        transform-origin: top right;
+    }
+    .profile-dropdown:not(.hidden) {
+        animation: dd-in 0.22s cubic-bezier(0.34,1.35,0.64,1) both;
+    }
+    @keyframes dd-in {
+        from { opacity:0; transform: scale(0.92) translateY(-8px); }
+        to   { opacity:1; transform: scale(1)    translateY(0); }
+    }
+
+    .dd-banner {
+        padding: 18px 18px 16px;
+        background: linear-gradient(135deg, rgba(108,99,255,0.12) 0%, rgba(168,85,247,0.07) 100%);
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 12px;
+    }
+    .dd-avatar {
+        width: 46px; height: 46px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        display: grid; place-items: center;
+        font-size: 16px; font-weight: 700; color: #fff;
+        flex-shrink: 0;
+        box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .dd-user-name   { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+    .dd-user-handle { font-size: 11px; color: var(--t3); margin-top: 2px; }
+
+    .dd-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px; }
+
+    .dd-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 9px 8px;
+        border-radius: var(--r-sm);
+    }
+    .dd-row-lbl { font-size: 11px; font-weight: 500; color: var(--t3); }
+
+    .dd-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 10px;
+        border-radius: var(--r-pill);
+        font-size: 11px; font-weight: 600;
+    }
+    .dd-pill.live    { background: var(--ok-dim);  color: var(--ok); }
+    .dd-pill.offline { background: var(--bad-dim); color: var(--bad); }
+    .dd-pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .live .dd-pill-dot    { background: var(--ok);  animation: live-pulse 1.4s infinite; }
+    .offline .dd-pill-dot { background: var(--bad); }
+    @keyframes live-pulse {
+        0%   { box-shadow: 0 0 0 0   rgba(34,197,94,0.7); }
+        70%  { box-shadow: 0 0 0 5px rgba(34,197,94,0);   }
+        100% { box-shadow: 0 0 0 0   rgba(34,197,94,0);   }
+    }
+
+    .dd-unread {
+        background: linear-gradient(135deg, var(--bad), #f97316);
+        color: #fff;
+        border-radius: var(--r-pill);
+        padding: 2px 9px;
+        font-size: 11px; font-weight: 700;
+        min-width: 24px; text-align: center;
+        box-shadow: 0 2px 8px rgba(239,68,68,0.4);
+    }
+
+    .dd-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+    .dd-signout {
+        width: 100%; padding: 10px 10px;
+        background: var(--bad-dim);
+        border: 1px solid rgba(239,68,68,0.15);
+        border-radius: var(--r-md);
+        color: var(--bad);
+        font-size: 13px; font-weight: 600; font-family: inherit;
+        cursor: pointer; text-align: left;
+        display: flex; align-items: center; gap: 8px;
+        transition: all 0.17s;
+        margin-top: 2px;
+    }
+    .dd-signout:hover  { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.35); }
+    .dd-signout:active { transform: scale(0.98); }
+
+    /* ═══════════════════════════════════════════════════
+       AUTH SECTION
+    ═══════════════════════════════════════════════════ */
+    #authSection {
+        max-width: 420px;
+        margin: 8vh auto 0;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-xl);
+        padding: 40px 32px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.65);
+    }
+    @media (max-width: 480px) { #authSection { padding: 28px 20px; margin-top: 5vh; } }
+
+    .auth-hdr { text-align: center; margin-bottom: 30px; }
+    .auth-logo {
+        width: 60px; height: 60px;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        border-radius: 18px;
+        display: grid; place-items: center;
+        font-size: 28px;
+        margin: 0 auto 16px;
+        box-shadow: 0 8px 26px var(--accent-glow);
+    }
+    .auth-hdr h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+    .auth-hdr p  { font-size: 13px; color: var(--t2); margin-top: 4px; }
+
+    /* ═══════════════════════════════════════════════════
+       INPUTS
+    ═══════════════════════════════════════════════════ */
+    .iw { position: relative; margin-bottom: 12px; }
+    .iw .ico {
+        position: absolute; left: 13px; top: 50%;
+        transform: translateY(-50%);
+        font-size: 14px; pointer-events: none; opacity: 0.4;
+    }
+    input {
+        width: 100%;
+        padding: 11px 14px 11px 38px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        color: var(--t1);
+        font-size: 14px; font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input::placeholder { color: var(--t3); }
+    input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    /* ═══════════════════════════════════════════════════
+       BUTTONS
+    ═══════════════════════════════════════════════════ */
+    .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 6px; padding: 10px 18px;
+        border: none; border-radius: var(--r-md);
+        font-family: inherit; font-size: 13px; font-weight: 600;
+        cursor: pointer; white-space: nowrap;
+        transition: all 0.17s ease;
+    }
+    .btn:active { transform: scale(0.96); }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--accent), #7c74ff);
+        color: #fff;
+        box-shadow: 0 2px 12px rgba(108,99,255,0.42);
+    }
+    .btn-primary:hover { filter: brightness(1.10); box-shadow: 0 4px 20px rgba(108,99,255,0.58); }
+
+    .btn-ok {
+        background: var(--ok-dim); color: var(--ok);
+        border: 1px solid rgba(34,197,94,0.2);
+    }
+    .btn-ok:hover { background: rgba(34,197,94,0.2); border-color: var(--ok); }
+
+    .btn-demo {
+        width: 100%; padding: 14px;
+        background: linear-gradient(135deg, #6c63ff 0%, #a855f7 100%);
+        color: #fff; font-size: 14px; font-weight: 600; font-family: inherit;
+        border: none; border-radius: var(--r-md); cursor: pointer;
+        box-shadow: 0 4px 24px rgba(108,99,255,0.42);
+        transition: all 0.2s;
+    }
+    .btn-demo:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 30px rgba(108,99,255,0.58); }
+    .btn-demo:active { transform: scale(0.98); }
+
+    /* Clear all button */
+    .btn-clear {
+        background: var(--bad-dim);
+        color: var(--bad);
+        border: 1px solid rgba(239,68,68,0.2);
+        border-radius: var(--r-md);
+        padding: 4px 12px;
+        font-size: 11px; font-weight: 600;
+        cursor: pointer; font-family: inherit;
+        transition: all 0.17s;
+    }
+    .btn-clear:hover { background: rgba(239,68,68,0.2); border-color: var(--bad); }
+
+    /* Delete button on notification card */
+    .n-delete {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--t3);
+        font-size: 14px;
+        padding: 4px 6px;
+        border-radius: var(--r-sm);
+        transition: all 0.15s;
+        flex-shrink: 0;
+        align-self: flex-start;
+        line-height: 1;
+    }
+    .n-delete:hover { color: var(--bad); background: var(--bad-dim); }
+
+    .auth-row { display: flex; gap: 10px; margin-top: 6px; }
+    .auth-row .btn { flex: 1; padding: 12px; font-size: 14px; }
+
+    .auth-err { font-size: 12px; color: var(--bad); min-height: 18px; margin-top: 10px; }
+
+    /* ═══════════════════════════════════════════════════
+       CARDS
+    ═══════════════════════════════════════════════════ */
+    .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 20px 22px;
+        margin-bottom: 14px;
+        transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--border-hi); }
+
+    .sec-lbl {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 10px; font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
+        color: var(--t3); margin-bottom: 12px;
+    }
+    .sec-lbl .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent); box-shadow: 0 0 7px var(--accent);
+        flex-shrink: 0;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       TOPBAR
+    ═══════════════════════════════════════════════════ */
+    .topbar {
+        display: flex; align-items: center; gap: 12px;
+        margin-bottom: 22px;
+        padding-right: 58px;
+    }
+    .logo-mark {
+        width: 36px; height: 36px;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        border-radius: var(--r-md);
+        display: grid; place-items: center;
+        font-size: 17px;
+        box-shadow: 0 4px 16px var(--accent-glow);
+        flex-shrink: 0;
+    }
+    .logo-name {
+        font-size: 17px; font-weight: 700; letter-spacing: -0.3px;
+        background: linear-gradient(90deg, var(--t1), var(--t2));
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .logo-sub { font-size: 11px; color: var(--t3); }
+
+    /* ═══════════════════════════════════════════════════
+       CONNECTION STATUS BAR
+    ═══════════════════════════════════════════════════ */
+    .status-bar {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 14px;
+        border-radius: var(--r-md);
+        font-size: 12px; font-weight: 500;
+        margin-bottom: 14px;
+        transition: all 0.3s;
+    }
+    .status-bar .pulse { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .connected { background: var(--ok-dim); color: var(--ok); border: 1px solid rgba(34,197,94,0.2); }
+    .connected .pulse { background: var(--ok); animation: s-pulse 1.4s ease-out infinite; }
+    @keyframes s-pulse {
+        0%   { box-shadow: 0 0 0 0   rgba(34,197,94,0.7); }
+        70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0);   }
+        100% { box-shadow: 0 0 0 0   rgba(34,197,94,0);   }
+    }
+    .disconnected { background: var(--bad-dim); color: var(--bad); border: 1px solid rgba(239,68,68,0.2); }
+    .disconnected .pulse { background: var(--bad); }
+
+    /* ═══════════════════════════════════════════════════
+       AI SUMMARY CARD
+    ═══════════════════════════════════════════════════ */
+    #summaryCard {
+        background: linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(168,85,247,0.04) 100%);
+        border-color: rgba(108,99,255,0.20);
+        margin-bottom: 14px;
+    }
+    .sum-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .ai-lbl {
+        font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+        background: linear-gradient(90deg, var(--accent), var(--purple));
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .spin-wrap { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--t3); margin-left: auto; }
+    .spinner { width:12px; height:12px; border:2px solid rgba(108,99,255,0.18); border-top-color:var(--accent); border-radius:50%; animation:spin 0.75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #summaryText { font-size: 13px; color: var(--t2); line-height: 1.7; }
+
+    /* ═══════════════════════════════════════════════════
+       PREFERENCE CHIPS
+    ═══════════════════════════════════════════════════ */
+    .prefs { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .pref-btn {
+        padding: 5px 13px;
+        border-radius: var(--r-pill);
+        font-size: 11px; font-weight: 500; font-family: inherit;
+        cursor: pointer; border: 1px solid var(--border);
+        background: var(--bg-elevated); color: var(--t2);
+        transition: all 0.17s;
+    }
+    .pref-btn:hover  { border-color: var(--border-hi); color: var(--t1); }
+    .pref-btn.active { background: var(--ok-dim);  color: var(--ok);  border-color: rgba(34,197,94,0.3); }
+    .pref-btn.muted  { background: var(--bad-dim); color: var(--bad); border-color: rgba(239,68,68,0.3); }
+
+    /* ═══════════════════════════════════════════════════
+       MAIN CSS GRID
+    ═══════════════════════════════════════════════════ */
+    .grid-lbl {
+        font-size: 10px; font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
+        color: var(--t3);
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .grid-lbl-left { display: flex; align-items: center; gap: 7px; }
+    .grid-lbl .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent); box-shadow: 0 0 7px var(--accent);
+    }
+
+    .main-grid {
+        display: grid;
+        grid-template-columns: minmax(280px, 400px) 1fr;
+        gap: 14px;
+        align-items: start;
+    }
+    @media (max-width: 820px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .search-col .card { margin-bottom: 0; }
+    .search-row { display: flex; gap: 8px; align-items: flex-start; }
+    .search-row .iw  { flex: 1; margin-bottom: 0; }
+
+    #searchResults { margin-top: 12px; }
+    .sr-header { font-size: 10px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase; color: var(--t3); margin-bottom: 8px; }
+    .sr-scroll  { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 3px; }
+
+    .feed-col { position: sticky; top: 24px; }
+    #feed {
+        max-height: calc(100vh - 330px);
+        min-height: 280px;
+        overflow-y: auto;
+        display: flex; flex-direction: column; gap: 10px;
+        padding-right: 3px;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       NOTIFICATION CARDS
+    ═══════════════════════════════════════════════════ */
+    .notif-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 12px 14px;
+        display: flex; gap: 11px; align-items: flex-start;
+        animation: slide-in 0.3s cubic-bezier(0.34,1.5,0.64,1);
+        transition: border-color 0.18s, transform 0.15s, opacity 0.25s;
+        position: relative; overflow: hidden;
+        flex-shrink: 0;
+    }
+    .notif-card:hover { border-color: var(--border-hi); transform: translateX(2px); }
+    .notif-card::before {
+        content: '';
+        position: absolute; left:0; top:0; bottom:0;
+        width: 3px; border-radius: 3px 0 0 3px;
+    }
+    .ORDER_PLACED::before    { background: var(--ok); }
+    .PAYMENT_SUCCESS::before { background: var(--sky); }
+    .PAYMENT_FAILED::before  { background: var(--bad); }
+    .DELIVERY_UPDATE::before { background: var(--warn); }
+    .PROMO_OFFER::before     { background: var(--purple); }
+
+    .n-icon {
+        width: 32px; height: 32px; border-radius: 8px;
+        display: grid; place-items: center; font-size: 15px; flex-shrink: 0;
+    }
+    .ORDER_PLACED    .n-icon { background: var(--ok-dim); }
+    .PAYMENT_SUCCESS .n-icon { background: var(--sky-dim); }
+    .PAYMENT_FAILED  .n-icon { background: var(--bad-dim); }
+    .DELIVERY_UPDATE .n-icon { background: var(--warn-dim); }
+    .PROMO_OFFER     .n-icon { background: var(--purple-dim); }
+
+    .n-body  { flex:1; min-width:0; }
+    .n-type  { font-size: 9px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 3px; }
+    .ORDER_PLACED    .n-type { color: var(--ok); }
+    .PAYMENT_SUCCESS .n-type { color: var(--sky); }
+    .PAYMENT_FAILED  .n-type { color: var(--bad); }
+    .DELIVERY_UPDATE .n-type { color: var(--warn); }
+    .PROMO_OFFER     .n-type { color: var(--purple); }
+
+    .n-msg  { font-size: 12px; color: var(--t1); line-height: 1.5; }
+    .n-time { font-size: 10px; color: var(--t3); margin-top: 3px; }
+
+    @keyframes slide-in {
+        from { opacity:0; transform: translateY(-10px) scale(0.98); }
+        to   { opacity:1; transform: translateY(0)     scale(1); }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       EMPTY STATE
+    ═══════════════════════════════════════════════════ */
+    .empty {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 10px; padding: 44px 16px;
+        color: var(--t3); text-align: center;
+    }
+    .empty-ico { font-size: 32px; opacity: 0.35; }
+    .empty p   { font-size: 12px; line-height: 1.65; }
+
+    /* ═══════════════════════════════════════════════════
+       TOAST
+    ═══════════════════════════════════════════════════ */
+    .toast {
+        position: fixed; bottom: 28px; left: 50%;
+        transform: translateX(-50%) translateY(10px);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-hi);
+        color: var(--t1); padding: 10px 22px;
+        border-radius: var(--r-pill);
+        font-size: 13px; font-weight: 500;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.65);
+        z-index: 9999; opacity: 0;
+        transition: all 0.28s ease;
+        white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SCROLLBARS
+    ═══════════════════════════════════════════════════ */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+    .hidden { display: none !important; }
+
+    </style>
+</head>
+<body>
+
+<!-- FLOATING PROFILE WIDGET -->
+<div class="profile-float hidden" id="profileFloat">
+
+    <button class="profile-btn" id="profileBtn" onclick="toggleDropdown()" aria-label="Open profile menu">
+        <span id="avatarInitials">?</span>
+        <span class="avatar-dot hidden" id="avatarDot"></span>
+    </button>
+
+    <div class="profile-dropdown hidden" id="profileDropdown" role="dialog" aria-label="Profile menu">
+        <div class="dd-banner">
+            <div class="dd-avatar" id="ddAvatar">?</div>
+            <div>
+                <div class="dd-user-name"  id="ddName">Username</div>
+                <div class="dd-user-handle">@<span id="ddHandle">username</span></div>
+            </div>
+        </div>
+        <div class="dd-body">
+            <div class="dd-row">
+                <span class="dd-row-lbl">Connection</span>
+                <div class="dd-pill offline" id="ddStatusPill">
+                    <span class="dd-pill-dot"></span>
+                    <span id="ddStatusText">Connecting…</span>
+                </div>
+            </div>
+            <div class="dd-row">
+                <span class="dd-row-lbl">Unread</span>
+                <span class="dd-unread" id="ddUnread">0</span>
+            </div>
+            <div class="dd-sep"></div>
+            <button class="dd-signout" onclick="logout()">
+                <span style="font-size:15px;">↩</span> Sign out
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN PAGE -->
+<div class="page">
+
+    <!-- AUTH SCREEN -->
+    <div id="authSection">
+        <div class="auth-hdr">
+            <div class="auth-logo">🔔</div>
+            <h1>Notification System</h1>
+            <p>Sign in to your real-time dashboard</p>
+        </div>
+        <div class="iw">
+            <span class="ico">👤</span>
+            <input type="text" id="username" placeholder="Username" autocomplete="username" />
+        </div>
+        <div class="iw">
+            <span class="ico">🔑</span>
+            <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+        </div>
+        <div class="auth-row">
+            <button class="btn btn-primary" id="loginBtn"    onclick="login()">Login</button>
+            <button class="btn btn-ok"      id="registerBtn" onclick="register()">Register</button>
+        </div>
+        <div class="auth-err" id="authError"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="notifSection" class="hidden">
+
+        <div class="topbar">
+            <div class="logo-mark">🔔</div>
+            <div>
+                <div class="logo-name">Notification System</div>
+                <div class="logo-sub">Real-time Dashboard</div>
+            </div>
+        </div>
+
+        <div id="status" class="status-bar disconnected">
+            <span class="pulse"></span>
+            <span id="statusText">Connecting…</span>
+        </div>
+
+        <!-- AI Summary -->
+        <div id="summaryCard" class="card hidden">
+            <div class="sum-hdr">
+                <span style="font-size:15px;">🤖</span>
+                <span class="ai-lbl">AI Summary</span>
+                <div class="spin-wrap hidden" id="summaryLoader">
+                    <div class="spinner"></div> Generating…
+                </div>
+            </div>
+            <div id="summaryText"></div>
+        </div>
+
+        <!-- Demo button -->
+        <div class="card" style="padding:16px;">
+            <button class="btn-demo" onclick="fireDemo()">🚀 &nbsp;Fire Demo Sequence &mdash; 10 Events</button>
+        </div>
+
+        <!-- Notification Preferences -->
+        <div class="card">
+            <div class="sec-lbl"><span class="dot"></span> Notification Preferences</div>
+            <p style="font-size:11px;color:var(--t3);">Tap a type to mute or unmute it</p>
+            <div class="prefs">
+                <button class="pref-btn active" id="pref-ORDER_PLACED"    onclick="toggleMute('ORDER_PLACED')">📦 Order Placed</button>
+                <button class="pref-btn active" id="pref-PAYMENT_SUCCESS" onclick="toggleMute('PAYMENT_SUCCESS')">✅ Payment Success</button>
+                <button class="pref-btn active" id="pref-PAYMENT_FAILED"  onclick="toggleMute('PAYMENT_FAILED')">❌ Payment Failed</button>
+                <button class="pref-btn active" id="pref-DELIVERY_UPDATE" onclick="toggleMute('DELIVERY_UPDATE')">🚚 Delivery Update</button>
+                <button class="pref-btn active" id="pref-PROMO_OFFER"     onclick="toggleMute('PROMO_OFFER')">🎁 Promo Offer</button>
+            </div>
+        </div>
+
+        <!-- CSS GRID: Semantic Search | Live Feed -->
+        <div class="main-grid">
+
+            <!-- LEFT — Semantic Search -->
+            <div class="search-col">
+                <div class="grid-lbl">
+                    <div class="grid-lbl-left"><span class="dot"></span> Semantic Search</div>
+                </div>
+                <div class="card">
+                    <div class="search-row">
+                        <div class="iw">
+                            <span class="ico">🔍</span>
+                            <input type="search" id="searchQuery" placeholder="e.g. payment failed, delivery update…" />
+                        </div>
+                        <button class="btn btn-primary" onclick="searchNotifications()">Search</button>
+                    </div>
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+
+            <!-- RIGHT — Live Feed -->
+            <div class="feed-col">
+                <div class="grid-lbl">
+                    <div class="grid-lbl-left"><span class="dot"></span> Live Feed</div>
+                    <button class="btn-clear" onclick="deleteAllNotifications()">Clear All</button>
+                </div>
+                <div id="feed">
+                    <div class="empty">
+                        <div class="empty-ico">🔔</div>
+                        <p>No notifications yet.<br>Fire the demo sequence to get started!</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+    /* ─── State ─── */
+    let stompClient = null;
+    let token       = null;
+    let username    = null;
+    let unreadCount = 0;
+    let mutedTypes  = new Set();
+
+    const TYPE_ICONS = {
+        ORDER_PLACED:    '📦',
+        PAYMENT_SUCCESS: '✅',
+        PAYMENT_FAILED:  '❌',
+        DELIVERY_UPDATE: '🚚',
+        PROMO_OFFER:     '🎁',
+    };
+
+    /* ─── Floating profile dropdown ─── */
+    function toggleDropdown() {
+        document.getElementById('profileDropdown').classList.toggle('hidden');
+    }
+    document.addEventListener('click', e => {
+        const float = document.getElementById('profileFloat');
+        const dd    = document.getElementById('profileDropdown');
+        if (!dd.classList.contains('hidden') && !float.contains(e.target)) {
+            dd.classList.add('hidden');
+        }
+    });
+
+    /* ─── Auth helpers ─── */
+    function setAuthLoading(on) {
+        document.getElementById('loginBtn').disabled    = on;
+        document.getElementById('registerBtn').disabled = on;
+        document.getElementById('loginBtn').textContent = on ? 'Please wait…' : 'Login';
+    }
+    function showAuthError(msg) {
+        document.getElementById('authError').innerHTML = `⚠️ ${msg}`;
+    }
+
+    /* ─── Register ─── */
+    async function register() {
+        const u = document.getElementById('username').value.trim();
+        const p = document.getElementById('password').value.trim();
+        if (!u || !p) return;
+        setAuthLoading(true);
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            res.ok ? onLoginSuccess(await res.json()) : showAuthError('Registration failed. Try a different username.');
+        } catch { showAuthError('Cannot connect to server.'); }
+        setAuthLoading(false);
+    }
+
+    /* ─── Login ─── */
+    async function login() {
+        const u = document.getElementById('username').value.trim();
+        const p = document.getElementById('password').value.trim();
+        if (!u || !p) return;
+        setAuthLoading(true);
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            res.ok ? onLoginSuccess(await res.json()) : showAuthError('Invalid credentials. Please try again.');
+        } catch { showAuthError('Cannot connect to server.'); }
+        setAuthLoading(false);
+    }
+
+    /* ─── Post-login setup ─── */
+    async function onLoginSuccess(data) {
+        token    = data.token;
+        username = data.username;
+
+        const initials = username.substring(0, 2).toUpperCase();
+        document.getElementById('avatarInitials').textContent = initials;
+        document.getElementById('ddAvatar').textContent       = initials;
+        document.getElementById('ddName').textContent         = username;
+        document.getElementById('ddHandle').textContent       = username.toLowerCase();
+
+        document.getElementById('authSection').classList.add('hidden');
+        document.getElementById('notifSection').classList.remove('hidden');
+        document.getElementById('profileFloat').classList.remove('hidden');
+
+        await loadPreferences();
+        await loadExistingNotifications();
+        loadSummary();
+        connectWebSocket();
+    }
+
+    /* ─── AI Summary ─── */
+    async function loadSummary() {
+        const card   = document.getElementById('summaryCard');
+        const text   = document.getElementById('summaryText');
+        const loader = document.getElementById('summaryLoader');
+        card.classList.remove('hidden');
+        loader.classList.remove('hidden');
+        text.textContent = '';
+        try {
+            const res = await fetch(
+                `/api/notifications/summary/${username}`,
+                { headers: { 'Authorization': 'Bearer ' + token } }
+            );
+            loader.classList.add('hidden');
+            text.textContent = res.ok ? (await res.json()).summary : 'Could not load AI summary.';
+        } catch { loader.classList.add('hidden'); text.textContent = 'Could not load AI summary.'; }
+    }
+
+    /* ─── Preferences ─── */
+    async function loadPreferences() {
+        const res = await fetch(
+            '/api/notifications/preferences/' + username,
+            { headers: { 'Authorization': 'Bearer ' + token } }
+        );
+        if (res.ok) {
+            mutedTypes = new Set(await res.json());
+            mutedTypes.forEach(t => {
+                const btn = document.getElementById('pref-' + t);
+                if (btn) btn.className = 'pref-btn muted';
+            });
+        }
+    }
+
+    async function toggleMute(type) {
+        const isMuted  = mutedTypes.has(type);
+        const endpoint = isMuted ? 'unmute' : 'mute';
+        await fetch(
+            `/api/notifications/preferences/${username}/${endpoint}/${type}`,
+            { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }
+        );
+        const btn = document.getElementById('pref-' + type);
+        if (isMuted) { mutedTypes.delete(type); btn.className = 'pref-btn active'; }
+        else         { mutedTypes.add(type);    btn.className = 'pref-btn muted';  }
+    }
+
+    /* ─── Load existing notifications ─── */
+    async function loadExistingNotifications() {
+        const res = await fetch(
+            '/api/notifications/' + username,
+            { headers: { 'Authorization': 'Bearer ' + token } }
+        );
+        if (res.ok) { (await res.json()).forEach(n => addToFeed(n, false)); }
+    }
+
+    /* ─── Demo ─── */
+    async function fireDemo() {
+        const btn = document.querySelector('.btn-demo');
+        btn.textContent = '⏳ Firing events…';
+        btn.disabled = true;
+        try {
+            const res = await fetch('/producer/api/demo/fire-sequence/' + username, { method: 'POST' });
+            if (res.ok) showToast('🚀 Demo sequence fired! Notifications incoming…');
+            else {
+                const text = await res.text();
+                showToast('⚠️ ' + (text || 'Rate limit exceeded'));
+            }
+        } catch { showToast('⚠️ Could not reach producer service'); }
+        setTimeout(() => {
+            btn.textContent = '🚀 \u00a0Fire Demo Sequence \u2014 10 Events';
+            btn.disabled = false;
+        }, 10000);
+    }
+
+    /* ─── Add notification card to feed ─── */
+    function addToFeed(n, animate = true) {
+        const feed  = document.getElementById('feed');
+        const empty = feed.querySelector('.empty');
+        if (empty) empty.remove();
+
+        const card = document.createElement('div');
+        card.className = `notif-card ${n.type}`;
+        card.id = `notif-${n.id}`;
+        if (!animate) card.style.animation = 'none';
+        card.innerHTML = `
+            <div class="n-icon">${TYPE_ICONS[n.type] || '🔔'}</div>
+            <div class="n-body">
+                <div class="n-type">${n.type.replace(/_/g,' ')}</div>
+                <div class="n-msg">${n.message}</div>
+                <div class="n-time">${new Date(n.timestamp).toLocaleString()}</div>
+            </div>
+            <button class="n-delete" onclick="deleteNotification('${n.id}')" title="Delete">✕</button>`;
+        feed.insertBefore(card, feed.firstChild);
+    }
+
+    /* ─── Delete single notification ─── */
+    async function deleteNotification(id) {
+        const res = await fetch(`/api/notifications/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+            const card = document.getElementById(`notif-${id}`);
+            if (card) {
+                card.style.opacity   = '0';
+                card.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    card.remove();
+                    const feed = document.getElementById('feed');
+                    if (feed.children.length === 0) {
+                        feed.innerHTML = `<div class="empty"><div class="empty-ico">🔔</div><p>No notifications yet.<br>Fire the demo sequence to get started!</p></div>`;
+                    }
+                }, 250);
+            }
+            unreadCount = Math.max(0, unreadCount - 1);
+            document.getElementById('ddUnread').textContent = unreadCount > 99 ? '99+' : unreadCount;
+            if (unreadCount === 0) document.getElementById('avatarDot').classList.add('hidden');
+        }
+    }
+
+    /* ─── Delete all notifications ─── */
+    async function deleteAllNotifications() {
+        const res = await fetch(`/api/notifications/all/${username}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+            document.getElementById('feed').innerHTML = `
+                <div class="empty"><div class="empty-ico">🔔</div><p>No notifications yet.<br>Fire the demo sequence to get started!</p></div>`;
+            unreadCount = 0;
+            document.getElementById('ddUnread').textContent = '0';
+            document.getElementById('avatarDot').classList.add('hidden');
+            showToast('🗑️ All notifications cleared');
+        }
+    }
+
+    /* ─── Badge & unread counter ─── */
+    function incrementBadge() {
+        unreadCount++;
+        document.getElementById('avatarDot').classList.remove('hidden');
+        document.getElementById('ddUnread').textContent = unreadCount > 99 ? '99+' : unreadCount;
+    }
+
+    /* ─── Semantic search ─── */
+    async function searchNotifications() {
+        const q = document.getElementById('searchQuery').value.trim();
+        if (!q) return;
+
+        const div = document.getElementById('searchResults');
+        div.innerHTML = `<div class="spin-wrap" style="padding:12px 0;"><div class="spinner"></div> Searching…</div>`;
+
+        const res = await fetch(
+            `/api/notifications/search?userId=${username}&q=${encodeURIComponent(q)}`,
+            { headers: { 'Authorization': 'Bearer ' + token } }
+        );
+
+        if (!res.ok) { div.innerHTML = `<p style="font-size:12px;color:var(--t3);padding-top:8px;">Search failed.</p>`; return; }
+
+        const list = await res.json();
+        if (list.length === 0) {
+            div.innerHTML = `<p style="font-size:12px;color:var(--t3);padding-top:8px;">No matching notifications found.</p>`;
+            return;
+        }
+
+        div.innerHTML = `<div class="sr-header">${list.length} result${list.length > 1 ? 's' : ''}</div>
+                         <div class="sr-scroll" id="srScroll"></div>`;
+        const scroll = document.getElementById('srScroll');
+        list.forEach(n => {
+            const card = document.createElement('div');
+            card.className = `notif-card ${n.type}`;
+            card.style.animation = 'none';
+            card.innerHTML = `
+                <div class="n-icon">${TYPE_ICONS[n.type] || '🔔'}</div>
+                <div class="n-body">
+                    <div class="n-type">${n.type.replace(/_/g,' ')}</div>
+                    <div class="n-msg">${n.message}</div>
+                    <div class="n-time">${new Date(n.timestamp).toLocaleString()}</div>
+                </div>`;
+            scroll.appendChild(card);
+        });
+    }
+
+    /* ─── WebSocket ─── */
+    function connectWebSocket() {
+        const socket = new SockJS('/ws');
+        stompClient  = Stomp.over(socket);
+        stompClient.debug = null;
+        stompClient.connect({}, () => {
+            setStatus(true);
+            stompClient.subscribe('/topic/notifications/' + username, msg => {
+                addToFeed(JSON.parse(msg.body));
+                incrementBadge();
+            });
+        }, () => {
+            setStatus(false);
+            setTimeout(connectWebSocket, 3000);
+        });
+    }
+
+    /* ─── Update connection status ─── */
+    function setStatus(connected) {
+        const bar   = document.getElementById('status');
+        const bText = document.getElementById('statusText');
+        const pill  = document.getElementById('ddStatusPill');
+        const pText = document.getElementById('ddStatusText');
+
+        if (connected) {
+            bar.className     = 'status-bar connected';
+            bText.textContent = 'Connected — live notifications active';
+            pill.className    = 'dd-pill live';
+            pText.textContent = 'Live';
+        } else {
+            bar.className     = 'status-bar disconnected';
+            bText.textContent = 'Disconnected — reconnecting…';
+            pill.className    = 'dd-pill offline';
+            pText.textContent = 'Offline';
+        }
+    }
+
+    /* ─── Logout ─── */
+    function logout() {
+        token = null; username = null; unreadCount = 0; mutedTypes = new Set();
+        if (stompClient) stompClient.disconnect();
+
+        document.getElementById('profileFloat').classList.add('hidden');
+        document.getElementById('profileDropdown').classList.add('hidden');
+        document.getElementById('authSection').classList.remove('hidden');
+        document.getElementById('notifSection').classList.add('hidden');
+        document.getElementById('avatarDot').classList.add('hidden');
+        document.getElementById('ddUnread').textContent = '0';
+        document.getElementById('ddStatusPill').className = 'dd-pill offline';
+        document.getElementById('ddStatusText').textContent = 'Connecting…';
+
+        document.getElementById('feed').innerHTML = `
+            <div class="empty">
+                <div class="empty-ico">🔔</div>
+                <p>No notifications yet.<br>Fire the demo sequence to get started!</p>
+            </div>`;
+        document.getElementById('searchResults').innerHTML = '';
+        document.getElementById('summaryCard').classList.add('hidden');
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('authError').textContent = '';
+
+        ['ORDER_PLACED','PAYMENT_SUCCESS','PAYMENT_FAILED','DELIVERY_UPDATE','PROMO_OFFER'].forEach(t => {
+            const b = document.getElementById('pref-' + t);
+            if (b) b.className = 'pref-btn active';
+        });
+    }
+
+    /* ─── Toast ─── */
+    function showToast(msg) {
+        const t = document.createElement('div');
+        t.className   = 'toast';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        requestAnimationFrame(() => {
+            t.style.opacity   = '1';
+            t.style.transform = 'translateX(-50%) translateY(0)';
+        });
+        setTimeout(() => {
+            t.style.opacity   = '0';
+            t.style.transform = 'translateX(-50%) translateY(10px)';
+            setTimeout(() => t.remove(), 280);
+        }, 3000);
+    }
+
+    /* ─── Keyboard shortcuts ─── */
+    document.addEventListener('keydown', e => {
+        const authVisible = !document.getElementById('authSection').classList.contains('hidden');
+        if (e.key === 'Enter' && authVisible) login();
+        if (e.key === 'Enter' && document.activeElement === document.getElementById('searchQuery')) searchNotifications();
+        if (e.key === 'Escape') document.getElementById('profileDropdown').classList.add('hidden');
+    });
+</script>
+</body>
+</html>

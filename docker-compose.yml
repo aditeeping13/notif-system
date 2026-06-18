@@ -1,0 +1,128 @@
+services:
+
+  # ─────────────────────────────────────────────────────────
+  # KAFKA (KRaft mode — no ZooKeeper)
+  # Two listeners:
+  #   INTERNAL://kafka:9092  → used by containers on this network
+  #   EXTERNAL://<host>:9093 → used from outside Docker (dev tools, Azure host)
+  # ─────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    ports:
+      - "29093:29093"  # EXTERNAL listener — accessible from host / Azure public IP
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS:          INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29093,CONTROLLER://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://${KAFKA_EXTERNAL_HOST:-localhost}:29093
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - notif-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # MONGODB
+  # ─────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"   # expose for optional local inspection; remove in prod
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - notif-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # PRODUCER SERVICE (Spring Boot — port 8081)
+  # ─────────────────────────────────────────────────────────
+  producer-service:
+    build:
+      context: ./producer-service/producer-service
+      dockerfile: Dockerfile
+    container_name: producer-service
+    environment:
+      # Override application.properties for Docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    networks:
+      - notif-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # NOTIFICATION SERVICE (Spring Boot — port 8082)
+  # ─────────────────────────────────────────────────────────
+  notification-service:
+    build:
+      context: ./notification-service/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    environment:
+      # Override application.properties for Docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/notificationdb
+      JWT_SECRET: ${JWT_SECRET}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    networks:
+      - notif-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # NGINX — reverse proxy + frontend (port 80)
+  # Single entry point for browser traffic:
+  #   /         → index.html
+  #   /api/*    → notification-service:8082
+  #   /ws       → notification-service:8082 (WebSocket)
+  #   /producer/ → producer-service:8081
+  # ─────────────────────────────────────────────────────────
+  nginx:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nginx
+    ports:
+      - "80:80"
+    networks:
+      - notif-network
+    depends_on:
+      - producer-service
+      - notification-service
+    restart: unless-stopped
+
+# ─────────────────────────────────────────────────────────
+# VOLUMES & NETWORKS
+# ─────────────────────────────────────────────────────────
+volumes:
+  kafka_data:
+  mongo_data:
+
+networks:
+  notif-network:
+    driver: bridge
