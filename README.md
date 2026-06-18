@@ -100,7 +100,8 @@ You can view the live deployed application here:
 [http://notif-system.centralindia.cloudapp.azure.com](http://notif-system.centralindia.cloudapp.azure.com)
 
 ### 🎥 Video Demonstration
-*(Drop your demo video file here when editing on GitHub)*
+
+https://github.com/user-attachments/assets/3144589f-2ff3-43f2-8199-9618ae833ee9
 
 ---
 
@@ -115,6 +116,10 @@ Create a `.env` file in the root directory:
 ```env
 # Kafka external hostname (leave as localhost for local dev)
 KAFKA_EXTERNAL_HOST=localhost
+
+https://github.com/user-attachments/assets/a5759f1e-50a3-42b6-bfd8-57109bf52507
+
+
 
 # JWT Secret Key (Any long string)
 JWT_SECRET=your_super_secret_jwt_key_here
