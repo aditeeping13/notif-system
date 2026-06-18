@@ -2,6 +2,18 @@
 
 An enterprise-grade, event-driven notification system designed for high scalability, real-time delivery, and AI-powered insights. Built with Java Spring Boot, Apache Kafka, MongoDB Vector Search, and large language models (Cohere & Groq), this system handles complex event streams and delivers them instantly to connected users.
 
+---
+
+## 🚀 Live Demo
+
+You can view the live deployed application here:
+[http://notif-system.centralindia.cloudapp.azure.com](http://notif-system.centralindia.cloudapp.azure.com)
+
+### 🎥 Video Demonstration
+
+https://github.com/user-attachments/assets/3144589f-2ff3-43f2-8199-9618ae833ee9
+
+---
 ## 🌟 Highlights & Key Capabilities
 
 - **Real-Time WebSocket Delivery:** Bi-directional communication ensures users receive notifications instantly in the browser without polling.
@@ -92,18 +104,7 @@ graph TD
 | `GET`  | `/api/notifications` | Fetches a user's notification history. |
 | `GET`  | `/api/notifications/search` | Performs a semantic search against notifications using a query string. |
 
----
 
-## 🚀 Live Demo
-
-You can view the live deployed application here:
-[http://notif-system.centralindia.cloudapp.azure.com](http://notif-system.centralindia.cloudapp.azure.com)
-
-### 🎥 Video Demonstration
-
-https://github.com/user-attachments/assets/3144589f-2ff3-43f2-8199-9618ae833ee9
-
----
 
 ## 🛠️ Local Development Setup
 
@@ -116,10 +117,6 @@ Create a `.env` file in the root directory:
 ```env
 # Kafka external hostname (leave as localhost for local dev)
 KAFKA_EXTERNAL_HOST=localhost
-
-https://github.com/user-attachments/assets/a5759f1e-50a3-42b6-bfd8-57109bf52507
-
-
 
 # JWT Secret Key (Any long string)
 JWT_SECRET=your_super_secret_jwt_key_here
