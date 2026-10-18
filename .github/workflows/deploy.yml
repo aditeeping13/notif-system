@@ -1,4 +1,4 @@
-name: Deploy to Azure VM
+name: Deploy to GCP VM
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Deploy to Azure VM via SSH
+      - name: Deploy to GCP VM via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.VM_HOST }}
