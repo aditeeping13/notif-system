@@ -7,7 +7,7 @@ An enterprise-grade, event-driven notification system designed for high scalabil
 ## 🚀 Live Demo
 
 You can view the live deployed application here:
-[http://34.9.250.65](http://34.9.250.65)
+👉 **[🚀 Launch Live Demo Application](http://notif-system-demo.duckdns.org/)**
 
 ### 🎥 Video Demonstration
 
