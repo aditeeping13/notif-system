@@ -84,7 +84,7 @@ graph TD
 - **Docker & Docker Compose:** Containerization of all services.
 - **Nginx:** Acts as an API Gateway and serves the static frontend.
 - **GitHub Actions:** CI/CD pipeline for automated testing and deployment.
-- **Microsoft Azure:** Cloud hosting (Ubuntu Linux VM).
+- **Google Cloud Platform (GCP):** Compute Engine VM hosting (Ubuntu Linux).
 
 ---
 
@@ -150,6 +150,6 @@ This project leverages **GitHub Actions** for automated deployments.
 
 The pipeline is triggered on every push to the `main` branch:
 1. Actions Runner checks out the latest code.
-2. Securely authenticates with the Azure VM via SSH using GitHub Secrets.
+2. Securely authenticates with the Google Cloud VM via SSH using GitHub Secrets.
 3. Pulls the latest commits.
 4. Executes a seamless `docker compose up --build -d` to rebuild the Java microservices and restart the containers with zero downtime.
